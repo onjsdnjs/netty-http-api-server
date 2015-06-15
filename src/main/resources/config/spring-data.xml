@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:mybatis="http://mybatis.org/schema/mybatis-spring"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+                       http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+                       http://www.springframework.org/schema/context
+                       http://www.springframework.org/schema/context/spring-context-3.1.xsd
+                       http://www.springframework.org/schema/aop
+                       http://www.springframework.org/schema/aop/spring-aop-3.1.xsd
+                       http://www.springframework.org/schema/tx
+                       http://www.springframework.org/schema/tx/spring-tx-3.1.xsd
+                       http://www.springframework.org/schema/jdbc
+                       http://www.springframework.org/schema/jdbc/spring-jdbc-3.1.xsd
+                       http://www.springframework.org/schema/jee
+                       http://www.springframework.org/schema/jee/spring-jee-3.1.xsd
+                       http://mybatis.org/schema/mybatis-spring
+                       http://mybatis.org/schema/mybatis-spring.xsd">
+
+	<!-- <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close">
+		<property name="driverClass" value="${data.jdbc.driverClass}" />
+		<property name="jdbcUrl" value="${data.jdbc.url}" />
+		<property name="user" value="${data.jdbc.username}" />
+		<property name="password" value="${data.jdbc.password}" />
+		<property name="minPoolSize" value="2" />
+		<property name="maxPoolSize" value="100" />
+	</bean> -->
+	
+	<bean id="dataSource" class="com.jolbox.bonecp.BoneCPDataSource" destroy-method="close">
+		<property name="driverClass" value="${data.jdbc.driverClass}" />
+		<property name="jdbcUrl" value="${data.jdbc.url}" />
+		<property name="username" value="${data.jdbc.username}" />
+		<property name="password" value="${data.jdbc.password}" />
+		<property name="idleConnectionTestPeriod" value="60" />
+		<property name="idleMaxAge" value="240" />
+		<property name="maxConnectionsPerPartition" value="30" />
+		<property name="minConnectionsPerPartition" value="2" />
+		<property name="partitionCount" value="3" />
+		<property name="acquireIncrement" value="2" />
+		<property name="statementsCacheSize" value="100" />
+		<property name="releaseHelperThreads" value="3" />
+	</bean>
+
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+
+	<!-- MyBatis -->
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="configLocation" value="classpath:config/mybatis-config.xml" />
+	</bean>
+
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.jkys.push.dao.mapper" />
+	</bean>
+
+	<tx:annotation-driven />
+
+</beans>

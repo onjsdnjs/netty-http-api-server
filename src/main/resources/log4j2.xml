@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration status="off">
+	<Properties>
+	</Properties>
+	<Appenders>
+		<Console name="console" target="SYSTEM_OUT">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %5level %logger{36}(%L) - %msg%n</Pattern>
+			</PatternLayout>
+		</Console>
+		<RollingFile name="all" fileName="logs/jkys-push-all.log" bufferSize="1024" filePattern="logs/$${date:yyyy-MM}/jkys-push-all-%d{yyyy-MM-dd}-%i.log.gz">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %5level %logger{36}(%L) - %msg%n</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="250 MB" />
+			</Policies>
+		</RollingFile>
+		<RollingFile name="sendTrace" fileName="logs/jkys-push-trace.log" bufferSize="1024"
+			filePattern="logs/$${date:yyyy-MM}/jkys-push-trace-%d{yyyy-MM-dd}-%i.log.gz">
+			<PatternLayout>
+				<Pattern>%d{HH:mm:ss.SSS} [%t] %5level %logger{36}(%L) - %msg%n</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="250 MB" />
+			</Policies>
+		</RollingFile>
+	</Appenders>
+	<loggers>
+		<root level="info">
+			<appender-ref ref="console" />
+			<appender-ref ref="all" />
+		</root>
+		<Logger name="sendTraceLogger" level="info" additivity="false">
+			<appender-ref ref="sendTrace" />
+		</Logger>
+		<Logger name="com.jkys.push.dao.mapper" level="debug">
+		</Logger>
+		<Logger name="com.jkys.push" level="debug">
+		</Logger>
+	</loggers>
+</configuration>
