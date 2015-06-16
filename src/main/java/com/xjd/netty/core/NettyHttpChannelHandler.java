@@ -1,33 +1,36 @@
 package com.xjd.netty.core;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.multipart.Attribute;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
 import io.netty.handler.codec.http.multipart.HttpDataFactory;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.Assert;
 
 import com.xjd.netty.NettyHttpRequest;
 
@@ -38,101 +41,110 @@ import com.xjd.netty.NettyHttpRequest;
  * @author elvis.xu
  * @since 2015-6-4
  */
-public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<Object> {
+public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObject> {
 	private static Logger log = LoggerFactory.getLogger(NettyHttpChannelHandler.class);
 
-	protected static HttpDataFactory dataFactory = new DefaultHttpDataFactory(true);
-
-	@Autowired
-	protected NettyRouterHander nettyRouterHander;
-
+	protected HttpRequestRouter httpRequestRouter;
 	protected NettyHttpRequest request;
 	protected HttpPostRequestDecoder decoder;
-	protected ByteBuffer buf;
+	protected ByteBuf buf;
+
+	public NettyHttpChannelHandler(HttpRequestRouter httpRequestRouter) {
+		Assert.notNull(httpRequestRouter);
+		this.httpRequestRouter = httpRequestRouter;
+	}
 
 	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+	protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+		log.trace("messaage received: {}", msg.getClass());
+
 		if (msg instanceof HttpRequest) {
 			HttpRequest httpRequest = (HttpRequest) msg;
+			
+			NettyHttpRequest nettyHttpRequest = new 
 
-			request = new NettyHttpRequest(httpRequest.getProtocolVersion(), httpRequest.getMethod(), httpRequest.getUri(),
-					httpRequest.getDecoderResult().isSuccess());
-			decoder = new HttpPostRequestDecoder(dataFactory, httpRequest);
-			buf = ByteBuffer.allocate(0);
+			log.trace("uri: {}", httpRequest.getUri());
+			log.trace("protocol: {}", httpRequest.getProtocolVersion().toString());
+			log.trace("method: {}", httpRequest.getMethod().toString());
+			log.trace("decoderResult: {}", httpRequest.getDecoderResult().toString());
+			log.trace("remoteAddress: {}", ctx.channel().remoteAddress());
+			log.trace("localAddress: {}", ctx.channel().localAddress());
 
-			// 其它设置
-			request.setRemoteAddr(getRealRemoteAddr(ctx, msg));
+			log.trace("[[headers]]");
+			HttpHeaders headers = httpRequest.headers();
+			for (Entry<String, String> header : headers.entries()) {
+				log.trace("{}:{}", header.getKey(), header.getValue());
+			}
 
-			if (decoder.isMultipart()) {
-				unsupportMultipart(ctx);
+			log.trace("[[cookies]]");
+			Set<Cookie> cookies = null;
+			String cookieStr = headers.get(HttpHeaders.Names.COOKIE);
+			if (cookieStr == null) {
+				cookies = Collections.emptySet();
+			} else {
+				cookies = CookieDecoder.decode(cookieStr);
+			}
+			for (Cookie cookie : cookies) {
+				log.trace("Cookie: {}", cookie.toString());
+			}
+
+			log.trace("[[parameters]]");
+			QueryStringDecoder queryStringDecoder = new QueryStringDecoder(httpRequest.getUri());
+			log.trace("uri: {}", queryStringDecoder.uri());
+			log.trace("path: {}", queryStringDecoder.path());
+			Map<String, List<String>> params = queryStringDecoder.parameters();
+			for (Entry<String, List<String>> entry : params.entrySet()) {
+				log.trace("{}:{}", entry.getKey(), Arrays.toString(entry.getValue().toArray()));
+			}
+
+			if (httpRequest.getMethod() == HttpMethod.POST) {
+				log.trace("isChunked: {}", HttpHeaders.isTransferEncodingChunked(httpRequest));
+				log.trace("isMulti: {}", HttpPostRequestDecoder.isMultipart(httpRequest));
+
+				HttpDataFactory httpDataFactory;
+				if (HttpPostRequestDecoder.isMultipart(httpRequest)) {
+					httpDataFactory = new DefaultHttpDataFactory(true); // use disk
+				} else {
+					httpDataFactory = new DefaultHttpDataFactory(); // use mixed
+				}
+				try {
+					httpPostRequestDecoder = new HttpPostRequestDecoder(httpDataFactory, httpRequest);
+				} catch (ErrorDataDecoderException e) {
+					log.error("cannot reolve request.");
+					resolveError(ctx);
+					return;
+				}
 			}
 
 		} else if (msg instanceof HttpContent) {
-			HttpContent httpContent = (HttpContent) msg;
-
-			if (httpContent.content().readableBytes() > 0) {
-				ByteBuffer tmpBuf = ByteBuffer.allocate(buf.capacity() + httpContent.content().readableBytes());
-				tmpBuf.put(buf.compact());
-				tmpBuf.put(httpContent.content().nioBuffer());
-				buf = tmpBuf;
+			HttpContent chunk = (HttpContent) msg;
+			try {
+				httpPostRequestDecoder.offer(chunk);
+			} catch (ErrorDataDecoderException e) {
+				log.error("cannot reolve request.");
+				resolveError(ctx);
+				return;
 			}
 
-			if (msg instanceof LastHttpContent) {
-				request.setEntity(buf.array());
-
-				Object result = nettyRouterHander.route(request);
-
-				if (result instanceof HttpResponse) {
-					DefaultFullHttpResponse response = (DefaultFullHttpResponse) result;
-					boolean keepAlive = HttpHeaders.isKeepAlive(request);
-					if (keepAlive) {
-						response.headers().set(CONTENT_LENGTH, response.content().readableBytes());
-						response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-					}
+			log.trace("[[DATA]]");
+			while (httpPostRequestDecoder.hasNext()) {
+				InterfaceHttpData interfaceHttpData = httpPostRequestDecoder.next();
+				if (interfaceHttpData.getHttpDataType() == HttpDataType.Attribute) {
+					Attribute attribute = (Attribute) interfaceHttpData;
+					log.trace("attribute: {}", attribute.toString());
+				} else if (interfaceHttpData.getHttpDataType() == HttpDataType.FileUpload) {
+					FileUpload fileUpload = (FileUpload) interfaceHttpData;
+					log.trace("fileupload: {}", fileUpload.toString());
 				}
-				ctx.write(result);
+			}
+
+			if (chunk instanceof LastHttpContent) {
+				log.trace("OK");
+				// 应答
+				// 应答完成后
+				reset();
 			}
 		}
 	}
 
-	protected String getRealRemoteAddr(ChannelHandlerContext ctx, Object msg) {
-		if (msg instanceof HttpRequest) {
-			HttpRequest httpRequest = (HttpRequest) msg;
-
-			String realAddress = httpRequest.headers().get("http_x_forwarded_for");
-			if (StringUtils.isNotBlank(realAddress)) {
-				return realAddress;
-			}
-		}
-		SocketAddress socketAddress = ctx.channel().remoteAddress();
-		if (socketAddress instanceof InetSocketAddress) {
-			InetAddress inetAddress = ((InetSocketAddress) socketAddress).getAddress();
-			if (inetAddress != null) {
-				return inetAddress.getHostAddress();
-			}
-		}
-
-		log.warn("无法获取请求端的IP: " + socketAddress.toString());
-		return socketAddress.toString();
-	}
-
-	protected void unsupportMultipart(ChannelHandlerContext ctx) {
-		String s = "暂不支持上传文件";
-		FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.BAD_REQUEST,
-				Unpooled.wrappedBuffer(s.getBytes(Charset.forName("utf8"))));
-		res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "plain/text; charset=UTF-8");
-		ctx.write(res);
-		ctx.close();
-	}
-
-	@Override
-	public void channelReadComplete(ChannelHandlerContext ctx) {
-		ctx.flush();
-	}
-
-	@Override
-	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-		log.error("netty exception caught: ", cause);
-		ctx.close();
-	}
 }
