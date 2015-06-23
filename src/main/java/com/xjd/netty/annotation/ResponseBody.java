@@ -6,14 +6,13 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * 请求是否支持文件上传
- * @author elvis.xu
- * @since 1.0.0
- */
-@Target({ ElementType.METHOD, ElementType.TYPE })
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface SupportMultipart {
+public @interface ResponseBody {
 
+	String produce();
+
+	String charset();
+	
 }
