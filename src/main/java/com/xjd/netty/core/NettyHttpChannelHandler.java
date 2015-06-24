@@ -1,12 +1,16 @@
 package com.xjd.netty.core;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.ClientCookieEncoder;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -23,8 +27,14 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+import io.netty.handler.stream.ChunkedFile;
+import io.netty.handler.stream.ChunkedInput;
+import io.netty.handler.stream.ChunkedStream;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +45,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xjd.netty.HttpResponse;
 
 /**
@@ -48,6 +59,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 	private static Logger log = LoggerFactory.getLogger(NettyHttpChannelHandler.class);
 
 	protected static HttpDataFactory httpDataFactory = new DefaultHttpDataFactory();
+	protected static ObjectMapper objectMapper = new ObjectMapper();
 
 	protected HttpRequestRouter router;
 	protected NettyHttpRequest request;
@@ -59,6 +71,13 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			throw new RuntimeException("httpRequestRouter cannot be null.");
 		}
 		this.router = httpRequestRouter;
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		log.error("netty exception caught: ", cause);
+		reset();
+		ctx.close();
 	}
 
 	@Override
@@ -100,10 +119,10 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 				request.setUploadedFiles(Collections.<FileUpload> emptyList());
 			}
 
-			HttpResponse response = router.supportRequest(request); // 是否支持该请求的处理
+			HttpResponse response = router.support(request); // 是否支持该请求的处理
 
 			if (response != null) { // 不支持
-				write(ctx, response);
+				write(ctx, request, response);
 				reset();
 				ctx.channel().close();
 				return;
@@ -146,13 +165,98 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			}
 
 			if (chunk instanceof LastHttpContent) {
-				
+				HttpResponse response = router.route(request);
+				write(ctx, request, response);
 			}
 		}
 	}
 
-	protected void write(ChannelHandlerContext ctx, HttpResponse res) {
+	protected void write(ChannelHandlerContext ctx, NettyHttpRequest request, HttpResponse res) throws Exception {
+		DefaultHttpResponse response = new DefaultHttpResponse(request.getProtocolVersion(), res.getStatus());
 
+		// header
+		if (res.getHeaders() != null) {
+			response.headers().set(res.getHeaders());
+		}
+
+		// keepAlive的判断
+		if (HttpHeaders.isKeepAlive(request)) {
+			response.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+		}
+
+		// cookie
+		if (res.getCookies() != null && !res.getCookies().isEmpty()) {
+			String cookie = ClientCookieEncoder.encode(res.getCookies());
+			response.headers().set(HttpHeaders.Names.SET_COOKIE, cookie);
+		}
+
+		// 输出对象
+		Object rt = res.getContent();
+		long length = 0;
+		if (rt == null) {
+			response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, 0);
+		} else {
+			response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+			if (rt instanceof byte[]) {
+				byte[] bs = (byte[]) rt;
+				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+				writeBytes(ctx, bs);
+
+			} else if (rt instanceof String) {
+				String s = (String) rt;
+				byte[] bs = (byte[]) s.getBytes(Charset.forName("UTF-8"));
+				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+				writeBytes(ctx, bs);
+
+			} else if (rt instanceof InputStream) {
+				InputStream is = (InputStream) rt;
+				HttpChunkedInput input = new HttpChunkedInput(new ChunkedStream(is));
+				ctx.write(input);
+
+			} else if (rt instanceof File) {
+				File f = (File) rt;
+				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, f.length());
+				HttpChunkedInput input = new HttpChunkedInput(new ChunkedFile(f));
+				ctx.write(input);
+
+			} else {
+				String contentType = response.headers().get(HttpHeaders.Names.CONTENT_TYPE);
+				if (contentType != null && contentType.toLowerCase().indexOf("xml") != -1) {
+					// TODO XML转换
+				} else { // JSON转换
+					byte[] bs = objectMapper.writeValueAsBytes(rt);
+					response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+					writeBytes(ctx, bs);
+				}
+			}
+		}
+	}
+
+	protected void writeBytes(ChannelHandlerContext ctx, final byte[] bs) {
+		HttpChunkedInput input = new HttpChunkedInput(new ChunkedInput<ByteBuf>() {
+			boolean read = false;
+
+			@Override
+			public ByteBuf readChunk(ChannelHandlerContext ctx) throws Exception {
+				if (read) {
+					return null;
+				}
+				ByteBuf buf = Unpooled.wrappedBuffer(bs);
+				read = true;
+				return buf;
+			}
+
+			@Override
+			public boolean isEndOfInput() throws Exception {
+				return read;
+			}
+
+			@Override
+			public void close() throws Exception {
+				read = true;
+			}
+		});
+		ctx.write(input);
 	}
 
 	protected void reset() {
@@ -172,14 +276,14 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 		}
 	}
 
-	protected void decodeError(ChannelHandlerContext ctx, NettyHttpRequest request) {
+	protected void decodeError(ChannelHandlerContext ctx, NettyHttpRequest request) throws Exception {
 		NettyHttpResponse response = new NettyHttpResponse();
 		response.setStatus(HttpResponseStatus.BAD_REQUEST);
 		response.setCookies(request.getCookies());
 		DefaultHttpHeaders headers = new DefaultHttpHeaders();
 		headers.set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=utf8");
 		response.setHeaders(headers);
-		write(ctx, response);
+		write(ctx, request, response);
 		reset();
 		ctx.channel().close();
 	}
