@@ -11,8 +11,24 @@ import java.lang.annotation.Target;
 @Documented
 public @interface ResponseBody {
 
-	String produce();
+	Produce produce() default Produce.APPLICATION_JSON;
 
-	String charset();
-	
+	String charset() default "UTF-8";
+
+	public static enum Produce {
+		TEXT_PLAIN("text/plain"), 
+		TEXT_HTML("text/html"), 
+		APPLICATION_JSON("application/json"), 
+		APPLICATION_XML("application/xml");
+
+		String val;
+
+		Produce(String val) {
+			this.val = val;
+		}
+
+		public String getVal() {
+			return val;
+		}
+	}
 }

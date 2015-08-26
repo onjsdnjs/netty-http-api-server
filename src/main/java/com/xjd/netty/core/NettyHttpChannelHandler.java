@@ -204,7 +204,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 
 			} else if (rt instanceof String) {
 				String s = (String) rt;
-				byte[] bs = (byte[]) s.getBytes(Charset.forName("UTF-8"));
+				byte[] bs = (byte[]) s.getBytes(getCharset(response.headers().get(HttpHeaders.Names.CONTENT_TYPE)));
 				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
 				writeBytes(ctx, bs);
 
@@ -221,15 +221,40 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 
 			} else {
 				String contentType = response.headers().get(HttpHeaders.Names.CONTENT_TYPE);
-				if (contentType != null && contentType.toLowerCase().indexOf("xml") != -1) {
+				if (contentType != null && contentType.toLowerCase().indexOf("json") != -1) { // JSON转换
+					Charset c = getCharset(contentType);
+					if (Charset.forName("UTF-8").equals(c)) {
+						byte[] bs = objectMapper.writeValueAsBytes(rt);
+						response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+						writeBytes(ctx, bs);
+					} else {
+						String s = objectMapper.writeValueAsString(rt);
+						byte[] bs = (byte[]) s.getBytes(c);
+						response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+						writeBytes(ctx, bs);
+					}
+					
+				} else if (contentType != null && contentType.toLowerCase().indexOf("xml") != -1) {
 					// TODO XML转换
-				} else { // JSON转换
-					byte[] bs = objectMapper.writeValueAsBytes(rt);
-					response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
-					writeBytes(ctx, bs);
+				} else { 
+					// TODO 默认序列化
 				}
 			}
 		}
+	}
+	
+	protected Charset getCharset(String contentType) {
+		int i;
+		if (contentType == null || (i = contentType.toLowerCase().indexOf("charset")) == -1) {
+			return Charset.forName("UTF-8");
+		}
+		
+		try {
+			return Charset.forName(contentType.substring(i + "charset".length()));
+		} catch (Exception e) {
+			log.warn("can not parse charset '{}'.", contentType.substring(i + "charset".length()));
+		}
+		return Charset.forName("UTF-8");
 	}
 
 	protected void writeBytes(ChannelHandlerContext ctx, final byte[] bs) {
