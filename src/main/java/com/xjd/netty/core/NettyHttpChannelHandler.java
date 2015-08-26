@@ -190,6 +190,11 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			response.headers().set(HttpHeaders.Names.SET_COOKIE, cookie);
 		}
 
+		// 跨域问题
+		response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+		response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE, HEAD, OPTIONS");
+		response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_EXPOSE_HEADERS, "Origin, X-Requested-With, Content-Type, Accept");
+
 		// 输出对象
 		Object rt = res.getContent();
 		long length = 0;
@@ -233,22 +238,22 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 						response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
 						writeBytes(ctx, bs);
 					}
-					
+
 				} else if (contentType != null && contentType.toLowerCase().indexOf("xml") != -1) {
 					// TODO XML转换
-				} else { 
+				} else {
 					// TODO 默认序列化
 				}
 			}
 		}
 	}
-	
+
 	protected Charset getCharset(String contentType) {
 		int i;
 		if (contentType == null || (i = contentType.toLowerCase().indexOf("charset")) == -1) {
 			return Charset.forName("UTF-8");
 		}
-		
+
 		try {
 			return Charset.forName(contentType.substring(i + "charset".length()));
 		} catch (Exception e) {
