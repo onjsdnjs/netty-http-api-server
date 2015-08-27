@@ -1,11 +1,17 @@
 package com.xjd.netty.core;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Resource;
+
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -18,17 +24,9 @@ import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-
-import javax.annotation.Resource;
-
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +38,7 @@ import com.xjd.netty.annotation.ResponseBody;
 
 @Configuration
 public class ServerConfig {
+	private static Logger log = LoggerFactory.getLogger(ServerConfig.class);
 
 	@Bean
 	@Resource(name = "channelInitializer")
@@ -105,7 +104,7 @@ public class ServerConfig {
 			if (rmClazz != null && methodList.size() > 1) {
 				for (Method method : methodList) {
 					if (method.getAnnotation(RequestMapping.class) == null) {
-						throw new IllegalArgumentException("cannot mapping controller method: " + clazz.getName() + "."
+						throw new IllegalArgumentException("cannot mapping ctrl method: " + clazz.getName() + "."
 								+ method.getName() + "()");
 					}
 				}
@@ -149,6 +148,8 @@ public class ServerConfig {
 					}
 					reqMap.put(uri, reqMapper);
 				}
+
+				log.debug("map request: {}", reqMapper);
 			}
 		}
 

@@ -1,47 +1,23 @@
 package com.xjd.netty.core;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.util.*;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.ClientCookieEncoder;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.CookieDecoder;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.HttpChunkedInput;
-import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObject;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.multipart.Attribute;
-import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
-import io.netty.handler.codec.http.multipart.FileUpload;
-import io.netty.handler.codec.http.multipart.HttpDataFactory;
-import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.multipart.*;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
-import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.handler.stream.ChunkedInput;
 import io.netty.handler.stream.ChunkedStream;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,13 +35,15 @@ import com.xjd.netty.HttpResponse;
 public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObject> {
 	private static Logger log = LoggerFactory.getLogger(NettyHttpChannelHandler.class);
 
-	protected static HttpDataFactory httpDataFactory = new DefaultHttpDataFactory();
 	protected static ObjectMapper objectMapper = new ObjectMapper();
+	protected static HttpDataFactory httpDataFactory = new DefaultHttpDataFactory();
 
 	protected HttpRequestRouter router;
 	protected NettyHttpRequest request;
 	protected HttpPostRequestDecoder decoder;
 	protected CompositeByteBuf buf;
+
+	protected boolean reset = false;
 
 	public NettyHttpChannelHandler(HttpRequestRouter httpRequestRouter) {
 		if (httpRequestRouter == null) {
@@ -83,9 +61,9 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
-		log.trace("messaage received: {}", msg.getClass());
-
 		if (msg instanceof HttpRequest) {
+			reset = false;
+
 			HttpRequest httpRequest = (HttpRequest) msg;
 
 			request = new NettyHttpRequest(httpRequest);
@@ -125,7 +103,6 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			if (response != null) { // 不支持
 				write(ctx, request, response);
 				reset();
-				ctx.channel().close();
 				return;
 			}
 
@@ -147,6 +124,9 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			}
 
 		} else if (msg instanceof HttpContent) {
+			if (reset) {
+				return;
+			}
 			HttpContent chunk = (HttpContent) msg;
 
 			if (decoder != null) {
@@ -164,10 +144,10 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 				}
 			} else if (buf != null) { // 不需要decoder
 				buf.addComponent(chunk.content());
+				chunk.content().retain();
 			}
 
 			if (chunk instanceof LastHttpContent) {
-				// FIXME
 				if (buf != null && buf.numComponents() > 0) {
 					int len = 0;
 					for (int i = 0; i < buf.numComponents(); i++) {
@@ -178,6 +158,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 					for (int i = 0; i < buf.numComponents(); i++) {
 						int r = buf.component(i).readableBytes();
 						buf.component(i).readBytes(bs, len, r);
+						buf.component(i).release();
 						len += r;
 					}
 					request.setBody(bs);
@@ -218,6 +199,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 		if (rt == null) {
 			response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, 0);
 			ctx.write(response);
+			ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
 		} else {
 			response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
 			if (rt instanceof byte[]) {
@@ -275,12 +257,13 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 
 	protected Charset getCharset(String contentType) {
 		int i;
-		if (contentType == null || (i = contentType.toLowerCase().indexOf("charset")) == -1) {
+		if (contentType == null || (i = contentType.toLowerCase().indexOf("charset")) == -1
+				|| (i = contentType.indexOf('=', i)) == -1) {
 			return Charset.forName("UTF-8");
 		}
 
 		try {
-			return Charset.forName(contentType.substring(i + "charset".length()));
+			return Charset.forName(contentType.substring(i + 1));
 		} catch (Exception e) {
 			log.warn("can not parse charset '{}'.", contentType.substring(i + "charset".length()));
 		}
@@ -315,19 +298,22 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 	}
 
 	protected void reset() {
-		if (decoder != null) {
-			try {
-				decoder.destroy();
-			} catch (Exception e) {
-				log.warn("", e);
+		if (!reset) {
+			if (decoder != null) {
+				try {
+					decoder.destroy();
+				} catch (Exception e) {
+					log.warn("", e);
+				}
+				decoder = null;
 			}
-			decoder = null;
-		}
-		if (buf != null) {
-			buf = null;
-		}
-		if (request != null) {
-			request = null;
+			if (buf != null) {
+				buf = null;
+			}
+			if (request != null) {
+				request = null;
+			}
+			reset = true;
 		}
 	}
 

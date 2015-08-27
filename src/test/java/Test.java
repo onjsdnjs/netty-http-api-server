@@ -1,50 +1,17 @@
+import java.util.*;
+import java.util.Map.Entry;
+
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.ChannelProgressiveFuture;
-import io.netty.channel.ChannelProgressiveFutureListener;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.CookieDecoder;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.HttpChunkedInput;
-import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObject;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.multipart.Attribute;
+import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
-import io.netty.handler.codec.http.multipart.FileUpload;
 import io.netty.handler.codec.http.multipart.HttpDataFactory;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
-import io.netty.handler.codec.http.multipart.InterfaceHttpData;
-import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
-import io.netty.handler.stream.ChunkedFile;
 import io.netty.handler.stream.ChunkedWriteHandler;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,58 +130,61 @@ public class Test {
 
 			} else if (msg instanceof HttpContent) {
 				HttpContent chunk = (HttpContent) msg;
-				try {
-					httpPostRequestDecoder.offer(chunk);
-				} catch (ErrorDataDecoderException e) {
-					log.error("cannot reolve request.");
-					resolveError(ctx);
-					return;
-				}
+//				try {
+//					httpPostRequestDecoder.offer(chunk);
+//				} catch (ErrorDataDecoderException e) {
+//					log.error("cannot reolve request.");
+//					resolveError(ctx);
+//					return;
+//				}
 
-				log.trace("[[DATA]]");
-				while (httpPostRequestDecoder.hasNext()) {
-					InterfaceHttpData interfaceHttpData = httpPostRequestDecoder.next();
-					if (interfaceHttpData.getHttpDataType() == HttpDataType.Attribute) {
-						Attribute attribute = (Attribute) interfaceHttpData;
-						log.trace("attribute: {}", attribute.toString());
-					} else if (interfaceHttpData.getHttpDataType() == HttpDataType.FileUpload) {
-						FileUpload fileUpload = (FileUpload) interfaceHttpData;
-						log.trace("fileupload: {}", fileUpload.toString());
-					}
-				}
+//				log.trace("[[DATA]]");
+//				while (httpPostRequestDecoder.hasNext()) {
+//					InterfaceHttpData interfaceHttpData = httpPostRequestDecoder.next();
+//					if (interfaceHttpData.getHttpDataType() == HttpDataType.Attribute) {
+//						Attribute attribute = (Attribute) interfaceHttpData;
+//						log.trace("attribute: {}", attribute.toString());
+//					} else if (interfaceHttpData.getHttpDataType() == HttpDataType.FileUpload) {
+//						FileUpload fileUpload = (FileUpload) interfaceHttpData;
+//						log.trace("fileupload: {}", fileUpload.toString());
+//					}
+//				}
 
 				if (chunk instanceof LastHttpContent) {
 					log.trace("OK");
 					// 应答
 					// 应答完成后
-					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-					response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
-					ctx.write(response);
-					HttpChunkedInput httpChunkWriter;
-					try {
-						httpChunkWriter = new HttpChunkedInput(new ChunkedFile(new File("/tmp/tmp.txt")));
-						ctx.write(httpChunkWriter, ctx.newProgressivePromise()).addListener(
-								new ChannelProgressiveFutureListener() {
-
-									@Override
-									public void operationComplete(ChannelProgressiveFuture future) throws Exception {
-										System.out.println("FINISH!");
-									}
-
-									@Override
-									public void operationProgressed(ChannelProgressiveFuture future, long progress, long total)
-											throws Exception {
-										System.out.println(progress + ":" + total);
-									}
-
-								});
-
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+//					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+//					response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+//					ctx.write(response);
+//					HttpChunkedInput httpChunkWriter;
+//					try {
+//						httpChunkWriter = new HttpChunkedInput(new ChunkedFile(new File("/tmp/tmp.txt")));
+//						ctx.write(httpChunkWriter, ctx.newProgressivePromise()).addListener(
+//								new ChannelProgressiveFutureListener() {
+//
+//									@Override
+//									public void operationComplete(ChannelProgressiveFuture future) throws Exception {
+//										System.out.println("FINISH!");
+//									}
+//
+//									@Override
+//									public void operationProgressed(ChannelProgressiveFuture future, long progress, long total)
+//											throws Exception {
+//										System.out.println(progress + ":" + total);
+//									}
+//
+//								});
+//
+//					} catch (IOException e) {
+//						e.printStackTrace();
+//					}
 					// ctx.write(new
 					// DefaultHttpContent(Unpooled.wrappedBuffer("HELLO".getBytes(Charset.forName("utf8")))));
 					// ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
+					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+					ctx.write(response);
+					ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
 					ctx.flush();
 					reset();
 				}

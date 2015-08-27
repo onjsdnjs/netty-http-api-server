@@ -2,6 +2,7 @@ package com.xjd.netty.core;
 
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
 public class RequestMapper {
 	private String[] reqUris;
@@ -68,4 +69,16 @@ public class RequestMapper {
 		this.method = method;
 	}
 
+	@Override
+	public String toString() {
+		return "RequestMapper{" +
+				"reqUris=" + Arrays.toString(reqUris) +
+				", reqMethod='" + reqMethod + '\'' +
+				", reqSupportMultipart=" + reqSupportMultipart +
+				", resContentType='" + resContentType + '\'' +
+				", resCharset=" + resCharset +
+				", beanName='" + beanName + '\'' +
+				", method=" + method +
+				'}';
+	}
 }
