@@ -1,5 +1,6 @@
 package com.xjd.netty;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -31,4 +32,8 @@ public interface HttpRequest {
 	boolean isMultipart();
 
 	List<FileUpload> getUploadedFiles();
+	
+	boolean isCustomBody();
+	
+	byte[] getBody();
 }

@@ -31,6 +31,7 @@ import io.netty.handler.stream.ChunkedFile;
 import io.netty.handler.stream.ChunkedInput;
 import io.netty.handler.stream.ChunkedStream;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -141,6 +142,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			}
 
 			if (httpRequest.getMethod() == HttpMethod.POST && decoder == null) {// 不需要decoder使用Bytebuf
+				request.setCustomBody(true);
 				buf = Unpooled.compositeBuffer(); // 注意大小只有16个
 			}
 
@@ -165,6 +167,21 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			}
 
 			if (chunk instanceof LastHttpContent) {
+				// FIXME
+				if (buf != null && buf.numComponents() > 0) {
+					int len = 0;
+					for (int i = 0; i < buf.numComponents(); i++) {
+						len += buf.component(i).readableBytes();
+					}
+					byte[] bs = new byte[len];
+					len = 0;
+					for (int i = 0; i < buf.numComponents(); i++) {
+						int r = buf.component(i).readableBytes();
+						buf.component(i).readBytes(bs, len, r);
+						len += r;
+					}
+					request.setBody(bs);
+				}
 				HttpResponse response = router.route(request);
 				write(ctx, request, response);
 			}

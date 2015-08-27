@@ -1,5 +1,6 @@
 package com.xjd.netty.core;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -23,6 +24,8 @@ public class NettyHttpRequest implements com.xjd.netty.HttpRequest, HttpRequest 
 	protected Collection<Cookie> cookies;
 	protected boolean multipart;
 	protected List<FileUpload> uploadedFiles;
+	protected boolean customBody;
+	protected byte[] body;
 
 	public NettyHttpRequest(HttpRequest httpRequest) {
 		this.request = httpRequest;
@@ -128,6 +131,22 @@ public class NettyHttpRequest implements com.xjd.netty.HttpRequest, HttpRequest 
 
 	public void setUploadedFiles(List<FileUpload> uploadedFiles) {
 		this.uploadedFiles = uploadedFiles;
+	}
+
+	public boolean isCustomBody() {
+		return customBody;
+	}
+
+	public void setCustomBody(boolean customBody) {
+		this.customBody = customBody;
+	}
+
+	public byte[] getBody() {
+		return body;
+	}
+
+	public void setBody(byte[] body) {
+		this.body = body;
 	}
 
 }
