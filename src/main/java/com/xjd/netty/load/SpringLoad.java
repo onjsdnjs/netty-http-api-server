@@ -1,4 +1,4 @@
-package com.xjd.netty.core;
+package com.xjd.netty.load;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
@@ -14,34 +14,22 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-
 import javax.annotation.Resource;
 
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.context.annotation.Scope;
 
-import sun.awt.AppContext;
-
+import com.xjd.netty.core.HttpRequestRouter;
+import com.xjd.netty.core.NettyHttpChannelHandler;
 
 @Configuration
-public class SpringConfig {
-
-	@Autowired
-	AppContext appContext;
+public class SpringLoad {
 
 	@Bean
 	@Resource(name = "channelInitializer")
@@ -69,17 +57,21 @@ public class SpringConfig {
 				pipeline.addLast(new HttpRequestDecoder());
 				pipeline.addLast(new HttpResponseEncoder());
 				pipeline.addLast(new HttpContentCompressor());
+				pipeline.addLast(new ChunkedWriteHandler());
 				// 设置处理的Handler
 				pipeline.addLast(channelInboundHandler);
 			}
 		};
 	}
 
-	public NettyHttpChannelHandler channelHandlerFactory() {
-		return new NettyHttpChannelHandler();
+	@Bean
+	@Resource(name = "httpRequestRouter")
+	@Scope("prototype")
+	public NettyHttpChannelHandler channelHandlerFactory(HttpRequestRouter httpRequestRouter) {
+		return new NettyHttpChannelHandler(httpRequestRouter);
 	}
-	
-	@Bean();
+
+	@Bean(name = "httpRequestRouter")
 	public HttpRequestRouter routerFactory() {
 		return new HttpRequestRouter();
 	}

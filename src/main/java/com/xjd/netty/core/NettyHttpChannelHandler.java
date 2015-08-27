@@ -200,28 +200,33 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 		long length = 0;
 		if (rt == null) {
 			response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, 0);
+			ctx.write(response);
 		} else {
 			response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
 			if (rt instanceof byte[]) {
 				byte[] bs = (byte[]) rt;
 				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+				ctx.write(response);
 				writeBytes(ctx, bs);
 
 			} else if (rt instanceof String) {
 				String s = (String) rt;
 				byte[] bs = (byte[]) s.getBytes(getCharset(response.headers().get(HttpHeaders.Names.CONTENT_TYPE)));
 				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+				ctx.write(response);
 				writeBytes(ctx, bs);
 
 			} else if (rt instanceof InputStream) {
 				InputStream is = (InputStream) rt;
 				HttpChunkedInput input = new HttpChunkedInput(new ChunkedStream(is));
+				ctx.write(response);
 				ctx.write(input);
 
 			} else if (rt instanceof File) {
 				File f = (File) rt;
 				response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, f.length());
 				HttpChunkedInput input = new HttpChunkedInput(new ChunkedFile(f));
+				ctx.write(response);
 				ctx.write(input);
 
 			} else {
@@ -231,11 +236,13 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 					if (Charset.forName("UTF-8").equals(c)) {
 						byte[] bs = objectMapper.writeValueAsBytes(rt);
 						response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+						ctx.write(response);
 						writeBytes(ctx, bs);
 					} else {
 						String s = objectMapper.writeValueAsString(rt);
 						byte[] bs = (byte[]) s.getBytes(c);
 						response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, bs.length);
+						ctx.write(response);
 						writeBytes(ctx, bs);
 					}
 
@@ -246,6 +253,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 				}
 			}
 		}
+		ctx.flush();
 	}
 
 	protected Charset getCharset(String contentType) {

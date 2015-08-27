@@ -3,6 +3,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelProgressiveFuture;
+import io.netty.channel.ChannelProgressiveFutureListener;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -10,6 +12,8 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.CookieDecoder;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -18,6 +22,8 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.multipart.Attribute;
@@ -28,7 +34,11 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+import io.netty.handler.stream.ChunkedFile;
+import io.netty.handler.stream.ChunkedWriteHandler;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +79,7 @@ public class Test {
 			pipeline.addLast("httpRequestDecoder", new HttpRequestDecoder());
 			pipeline.addLast("httpResponseEncoder", new HttpResponseEncoder());
 			pipeline.addLast("httpContentCompressor", new HttpContentCompressor());
+			pipeline.addLast("chunkedWriteHandler", new ChunkedWriteHandler());
 			pipeline.addLast("httpHandler", new HttpHandler());
 		}
 
@@ -171,11 +182,40 @@ public class Test {
 						log.trace("fileupload: {}", fileUpload.toString());
 					}
 				}
-				
+
 				if (chunk instanceof LastHttpContent) {
 					log.trace("OK");
 					// 应答
 					// 应答完成后
+					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+					response.headers().set(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+					ctx.write(response);
+					HttpChunkedInput httpChunkWriter;
+					try {
+						httpChunkWriter = new HttpChunkedInput(new ChunkedFile(new File("/tmp/tmp.txt")));
+						ctx.write(httpChunkWriter, ctx.newProgressivePromise()).addListener(
+								new ChannelProgressiveFutureListener() {
+
+									@Override
+									public void operationComplete(ChannelProgressiveFuture future) throws Exception {
+										System.out.println("FINISH!");
+									}
+
+									@Override
+									public void operationProgressed(ChannelProgressiveFuture future, long progress, long total)
+											throws Exception {
+										System.out.println(progress + ":" + total);
+									}
+
+								});
+
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					// ctx.write(new
+					// DefaultHttpContent(Unpooled.wrappedBuffer("HELLO".getBytes(Charset.forName("utf8")))));
+					// ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
+					ctx.flush();
 					reset();
 				}
 			}
@@ -186,7 +226,7 @@ public class Test {
 			reset();
 			ctx.channel().close();
 		}
-		
+
 		protected void reset() {
 			if (httpPostRequestDecoder != null) {
 				try {
