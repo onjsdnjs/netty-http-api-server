@@ -19,5 +19,5 @@
 	<context:annotation-config />
 	<aop:aspectj-autoproxy /> -->
 	
-	<bean class="com.xjd.netty.load.SpringLoad" />
+	<bean class="com.xjd.netty.core.ServerConfig" />
 </beans>

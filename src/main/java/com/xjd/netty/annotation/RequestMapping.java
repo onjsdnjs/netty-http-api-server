@@ -11,9 +11,9 @@ import java.lang.annotation.Target;
 @Documented
 public @interface RequestMapping {
 
-	String[] value() default {};
+	String[] value() default {""};
 
-	Method method();
+	Method method() default Method.ALL;
 
 	boolean supportMultipart() default false;
 
@@ -30,11 +30,11 @@ public @interface RequestMapping {
 			return code;
 		}
 
-		public boolean validCode(String code) {
+		public static boolean validCode(String code) {
 			return valueOfCode(code) != null;
 		}
 
-		public Method valueOfCode(String code) {
+		public static Method valueOfCode(String code) {
 			if (code == null) {
 				return ALL;
 			}

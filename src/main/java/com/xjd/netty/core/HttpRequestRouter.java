@@ -7,13 +7,42 @@ import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
+import java.util.Map;
+
+import org.springframework.context.ApplicationContext;
 
 import com.xjd.netty.HttpResponse;
+import com.xjd.netty.annotation.RequestMapping;
 
 public class HttpRequestRouter {
 
+	protected ApplicationContext contxt;
+	protected Map<String, RequestMapper> requestMap;
+
+	public HttpRequestRouter(ApplicationContext contxt, Map<String, RequestMapper> requestMap) {
+		this.contxt = contxt;
+		this.requestMap = requestMap;
+	}
+
 	public HttpResponse support(NettyHttpRequest request) {
-		// TODO Auto-generated method stub
+		String uri = request.getUri();
+		RequestMapper reqMapper = requestMap.get(uri);
+		if (reqMapper == null) {
+			NettyHttpResponse res = new NettyHttpResponse();
+			res.setStatus(HttpResponseStatus.NOT_FOUND);
+			return res;
+		}
+		RequestMapping.Method spMethod = RequestMapping.Method.valueOfCode(reqMapper.getReqMethod());
+		if (spMethod != RequestMapping.Method.ALL && spMethod != RequestMapping.Method.valueOfCode(request.getMethod().name())) {
+			NettyHttpResponse res = new NettyHttpResponse();
+			res.setStatus(HttpResponseStatus.FORBIDDEN);
+			return res;
+		}
+		if (!reqMapper.isReqSupportMultipart() && request.isMultipart()) {
+			NettyHttpResponse res = new NettyHttpResponse();
+			res.setStatus(HttpResponseStatus.FORBIDDEN);
+			return res;
+		}
 		return null;
 	}
 
