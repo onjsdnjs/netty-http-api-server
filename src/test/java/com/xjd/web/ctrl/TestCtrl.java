@@ -1,5 +1,8 @@
 package com.xjd.web.ctrl;
 
+import java.io.File;
+import java.io.IOException;
+
 import org.springframework.stereotype.Controller;
 
 import com.xjd.netty.HttpRequest;
@@ -11,18 +14,29 @@ import com.xjd.netty.annotation.RequestMapping;
  * @since 2015-08-27 22:43
  */
 @Controller
-@RequestMapping(value = "/test", method = RequestMapping.Method.POST)
+@RequestMapping(value = "/test")
 public class TestCtrl {
 
+	@RequestMapping(value = "/test1")
 	public Object test(@RequestBody User user, HttpRequest request) {
 		System.out.println(request);
 		System.out.println(user);
 		return user;
 	}
 
+	@RequestMapping(value = "/test2", supportMultipart = true)
+	public Object test2(HttpRequest request) {
+		try {
+			request.getUploadedFiles().get(0).renameTo(new File("/data/workspace/tmp/tmp.jpg"));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "{\"code\":\"ok\"}";
+	}
+
 	public static class User {
 		private String name;
-		private int age;
+		private Integer age;
 
 		public String getName() {
 			return name;
@@ -32,11 +46,11 @@ public class TestCtrl {
 			this.name = name;
 		}
 
-		public int getAge() {
+		public Integer getAge() {
 			return age;
 		}
 
-		public void setAge(int age) {
+		public void setAge(Integer age) {
 			this.age = age;
 		}
 

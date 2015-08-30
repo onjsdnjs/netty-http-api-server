@@ -1,16 +1,15 @@
 package com.xjd.netty;
 
-import io.netty.buffer.ByteBuf;
+import java.net.SocketAddress;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.multipart.FileUpload;
-
-import java.net.SocketAddress;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 public interface HttpRequest {
 	SocketAddress getRemoteAddress();
@@ -18,6 +17,8 @@ public interface HttpRequest {
 	SocketAddress getLocalAddress();
 
 	String getUri();
+
+	String getRequestUri();
 
 	HttpVersion getProtocol();
 

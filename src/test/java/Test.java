@@ -27,7 +27,7 @@ public class Test {
 			ServerBootstrap sb = new ServerBootstrap();
 			sb.group(bossGroup, workGroup).channel(NioServerSocketChannel.class).childHandler(new HttpChannelInitializer());
 
-			Channel channel = sb.bind(9001).sync().channel();
+			Channel channel = sb.bind(9090).sync().channel();
 
 			log.info("server started at: 9001");
 
@@ -182,11 +182,17 @@ public class Test {
 					// ctx.write(new
 					// DefaultHttpContent(Unpooled.wrappedBuffer("HELLO".getBytes(Charset.forName("utf8")))));
 					// ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
-					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+					DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+//					response.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/json; charset=UTF-8");
+					response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, 0);
+					response.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+					response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+					response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE, HEAD, OPTIONS");
+					response.headers().set(HttpHeaders.Names.ACCESS_CONTROL_EXPOSE_HEADERS, "Origin, X-Requested-With, Content-Type, Accept");
 					ctx.write(response);
 					ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
 					ctx.flush();
-					reset();
+//					reset();
 				}
 			}
 		}

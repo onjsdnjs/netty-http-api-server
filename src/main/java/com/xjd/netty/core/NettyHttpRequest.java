@@ -1,18 +1,13 @@
 package com.xjd.netty.core;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.handler.codec.DecoderResult;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.multipart.FileUpload;
-
 import java.net.SocketAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.multipart.FileUpload;
 
 public class NettyHttpRequest implements com.xjd.netty.HttpRequest, HttpRequest {
 
@@ -20,6 +15,7 @@ public class NettyHttpRequest implements com.xjd.netty.HttpRequest, HttpRequest 
 
 	protected SocketAddress remoteAddress;
 	protected SocketAddress localAddress;
+	protected String requestUri;
 	protected Map<String, List<String>> parameters;
 	protected Collection<Cookie> cookies;
 	protected boolean multipart;
@@ -149,4 +145,12 @@ public class NettyHttpRequest implements com.xjd.netty.HttpRequest, HttpRequest 
 		this.body = body;
 	}
 
+	@Override
+	public String getRequestUri() {
+		return requestUri;
+	}
+
+	public void setRequestUri(String requestUri) {
+		this.requestUri = requestUri;
+	}
 }

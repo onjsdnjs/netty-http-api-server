@@ -79,6 +79,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 			}
 
 			QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.getUri());
+			request.setRequestUri(queryStringDecoder.path());
 			Map<String, List<String>> params = queryStringDecoder.parameters();
 			if (httpRequest.getMethod() == HttpMethod.POST) {
 				Map<String, List<String>> ps = new HashMap<String, List<String>>();
@@ -198,6 +199,7 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 		long length = 0;
 		if (rt == null) {
 			response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, 0);
+			response.headers().remove(HttpHeaders.Names.CONTENT_TYPE);
 			ctx.write(response);
 			ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
 		} else {

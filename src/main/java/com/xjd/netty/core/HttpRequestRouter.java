@@ -13,8 +13,11 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xjd.netty.HttpRequest;
 import com.xjd.netty.HttpResponse;
@@ -22,8 +25,12 @@ import com.xjd.netty.annotation.RequestBody;
 import com.xjd.netty.annotation.RequestMapping;
 
 public class HttpRequestRouter {
+	public static Logger log = LoggerFactory.getLogger(HttpRequestRouter.class);
 
 	protected static ObjectMapper objectMapper = new ObjectMapper();
+	static {
+		objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+	}
 
 	protected ApplicationContext contxt;
 	protected Map<String, RequestMapper> requestMap;
@@ -34,7 +41,7 @@ public class HttpRequestRouter {
 	}
 
 	public HttpResponse support(NettyHttpRequest request) {
-		String uri = request.getUri();
+		String uri = request.getRequestUri();
 		RequestMapper reqMapper = requestMap.get(uri);
 		if (reqMapper == null) {
 			NettyHttpResponse res = new NettyHttpResponse();
@@ -56,17 +63,19 @@ public class HttpRequestRouter {
 	}
 
 	public HttpResponse route(NettyHttpRequest request) {
-		String uri = request.getUri();
+		String uri = request.getRequestUri();
 		RequestMapper reqMapper = requestMap.get(uri);
 
 		Object rt = null;
 		try {
 			rt = execute(request, reqMapper);
 		} catch (IOException e) {
+			log.warn("execute request exception: {}", (Object) e);
 			NettyHttpResponse res = new NettyHttpResponse();
 			res.setStatus(HttpResponseStatus.BAD_REQUEST);
 			return res;
 		} catch (Throwable e) {
+			log.error("execute request exception.", e);
 			NettyHttpResponse res = new NettyHttpResponse();
 			res.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
 			return res;
@@ -109,7 +118,7 @@ public class HttpRequestRouter {
 				if (hasBodyA) {
 					byte[] body = request.getBody();
 
-					if (body == null) {
+					if (body == null || body.length == 0) {
 						param = null;
 					} else if (String.class.equals(paramType)) {
 						param = (new String(body, Charset.forName("utf8")));
