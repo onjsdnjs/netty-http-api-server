@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xjd.netty.HttpResponse;
+import com.xjd.netty.context.RequestHolder;
 
 /**
  * <pre>
@@ -164,7 +165,9 @@ public class NettyHttpChannelHandler extends SimpleChannelInboundHandler<HttpObj
 					}
 					request.setBody(bs);
 				}
+				RequestHolder.set(request);
 				HttpResponse response = router.route(request);
+				RequestHolder.clear();
 				write(ctx, request, response);
 			}
 		}
